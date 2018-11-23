@@ -25,6 +25,8 @@ type Reader struct {
 // slice.
 func (r *Reader) Len() int {
 	if r.i >= int64(len(r.s)) {
+		// 如果当前读取到的位置索引，大于或等于Reader结构体中 s 切片的长度，
+		// 表明已经读到了 s 切片的末尾了，所以返回的剩余未读部分的长度为0
 		return 0
 	}
 	return int(int64(len(r.s)) - r.i)
@@ -39,6 +41,7 @@ func (r *Reader) Size() int64 { return int64(len(r.s)) }
 // Read implements the io.Reader interface.
 func (r *Reader) Read(b []byte) (n int, err error) {
 	if r.i >= int64(len(r.s)) {
+		// 如果当前已经读到的位置索引是切片 s 的末尾了，返回：
 		return 0, io.EOF
 	}
 	r.prevRune = -1
@@ -49,6 +52,8 @@ func (r *Reader) Read(b []byte) (n int, err error) {
 
 // ReadAt implements the io.ReaderAt interface.
 func (r *Reader) ReadAt(b []byte, off int64) (n int, err error) {
+	// 偏移量 off 是相对于 Reader 的结构体成员 s 切片的偏移，而不是相对于当前已经读取的索引位置 i 的
+	// copy操作后，对当前读取到的位置索引 i 没有做更改
 	// cannot modify state - see io.ReaderAt
 	if off < 0 {
 		return 0, errors.New("bytes.Reader.ReadAt: negative offset")
@@ -56,7 +61,7 @@ func (r *Reader) ReadAt(b []byte, off int64) (n int, err error) {
 	if off >= int64(len(r.s)) {
 		return 0, io.EOF
 	}
-	n = copy(b, r.s[off:])
+	n = copy(b, r.s[off:]) // 如果偏移量 off 等于0，即复制了一份 Reader 结构体成员的 s 切片
 	if n < len(b) {
 		err = io.EOF
 	}
@@ -67,10 +72,11 @@ func (r *Reader) ReadAt(b []byte, off int64) (n int, err error) {
 func (r *Reader) ReadByte() (byte, error) {
 	r.prevRune = -1
 	if r.i >= int64(len(r.s)) {
+		// 如果已经读取到了末尾了，返回：
 		return 0, io.EOF
 	}
 	b := r.s[r.i]
-	r.i++
+	r.i++ // 修改了当前读取位置的索引
 	return b, nil
 }
 
@@ -95,7 +101,7 @@ func (r *Reader) ReadRune() (ch rune, size int, err error) {
 		r.i++
 		return rune(c), 1, nil
 	}
-	ch, size = utf8.DecodeRune(r.s[r.i:])
+	ch, size = utf8.DecodeRune(r.s[r.i:]) // 解码第一个 rune 类型
 	r.i += int64(size)
 	return
 }
