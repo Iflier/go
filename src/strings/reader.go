@@ -41,11 +41,12 @@ func (r *Reader) Read(b []byte) (n int, err error) {
 		return 0, io.EOF
 	}
 	r.prevRune = -1
-	n = copy(b, r.s[r.i:])
+	n = copy(b, r.s[r.i:]) //把Reader结构体成员s中未被读取的字符串，复制到字节切片b
 	r.i += int64(n)
 	return
 }
 
+//ReadAt 从off指定的位置开始读取，而不考虑用于跟踪当前读位置的索引i，也不会修改它
 func (r *Reader) ReadAt(b []byte, off int64) (n int, err error) {
 	// cannot modify state - see io.ReaderAt
 	if off < 0 {
@@ -61,9 +62,11 @@ func (r *Reader) ReadAt(b []byte, off int64) (n int, err error) {
 	return
 }
 
+// ReadByte 从Reader结构体成员s读取一个字节，然后更新用于跟踪当前读位置索引的i（加1）
 func (r *Reader) ReadByte() (byte, error) {
 	r.prevRune = -1
 	if r.i >= int64(len(r.s)) {
+		// 判断Reader结构体成员s是否已经全部被读完了
 		return 0, io.EOF
 	}
 	b := r.s[r.i]
@@ -117,6 +120,7 @@ func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekCurrent:
 		abs = r.i + offset
 	case io.SeekEnd:
+		// 如果offset > 0，使得跟踪当前读位置的索引 i 大于 s 的长度。例如Read操作会先判断当前的读取位置（索引i），如果 i >= len(s)，返回的读字节个数为0
 		abs = int64(len(r.s)) + offset
 	default:
 		return 0, errors.New("strings.Reader.Seek: invalid whence")
@@ -134,7 +138,7 @@ func (r *Reader) WriteTo(w io.Writer) (n int64, err error) {
 	if r.i >= int64(len(r.s)) {
 		return 0, nil
 	}
-	s := r.s[r.i:]
+	s := r.s[r.i:] //只是把Reader结构体体成员s中未被读取的部分写入到w，并不更新跟踪当前读位置索引
 	m, err := io.WriteString(w, s)
 	if m > len(s) {
 		panic("strings.Reader.WriteTo: invalid WriteString count")
