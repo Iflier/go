@@ -108,8 +108,10 @@ func (b *Buffer) Reset() {
 // It returns the index where bytes should be written and whether it succeeded.
 func (b *Buffer) tryGrowByReslice(n int) (int, bool) {
 	if l := len(b.buf); n <= cap(b.buf)-l {
+		// 如果buf的容量与buf目前已有的字节个数之差小于将要写入的字节个数n
+		// 即，如果buf的容量可以容纳buf已有的字节和将要添加的字节个数，就不会增加buf的容量，而是重新切片
 		b.buf = b.buf[:l+n]
-		return l, true
+		return l, true //返回的 l 表示的是buf目前已经容纳的字节个数
 	}
 	return 0, false
 }
@@ -118,18 +120,19 @@ func (b *Buffer) tryGrowByReslice(n int) (int, bool) {
 // It returns the index where bytes should be written.
 // If the buffer can't grow it will panic with ErrTooLarge.
 func (b *Buffer) grow(n int) int {
-	m := b.Len()
+	m := b.Len() // buf中没有未被读取的字节了
 	// If buffer is empty, reset to recover space.
 	if m == 0 && b.off != 0 {
-		b.Reset()
+		b.Reset() // Reset操作会把Buffer结构体成员buf设置为一个空的切片，所有已经被读取的字节都会丢失
 	}
 	// Try to grow by means of a reslice.
 	if i, ok := b.tryGrowByReslice(n); ok {
 		return i
 	}
 	if b.buf == nil && n <= smallBufferSize {
+		// 如果buf是一个空的切片，并且将要增长的字节数小于smallBufferSize，则重新make一个新的字节切片
 		b.buf = make([]byte, n, smallBufferSize)
-		return 0
+		return 0 //返回当前读写的位置索引
 	}
 	c := cap(b.buf)
 	if n <= c/2-m {
@@ -174,6 +177,7 @@ func (b *Buffer) Write(p []byte) (n int, err error) {
 	if !ok {
 		m = b.grow(len(p))
 	}
+	// m表示的是buf中已经存储的字节的最大位置索引
 	return copy(b.buf[m:], p), nil
 }
 
@@ -186,7 +190,7 @@ func (b *Buffer) WriteString(s string) (n int, err error) {
 	if !ok {
 		m = b.grow(len(s))
 	}
-	return copy(b.buf[m:], s), nil
+	return copy(b.buf[m:], s), nil // 可以把字符串类型复制到切片
 }
 
 // MinRead is the minimum slice size passed to a Read call by
@@ -202,9 +206,9 @@ const MinRead = 512
 func (b *Buffer) ReadFrom(r io.Reader) (n int64, err error) {
 	b.lastRead = opInvalid
 	for {
-		i := b.grow(MinRead)
-		b.buf = b.buf[:i]
-		m, e := r.Read(b.buf[i:cap(b.buf)])
+		i := b.grow(MinRead)                // 返回 b 的读写位置的索引
+		b.buf = b.buf[:i]                   // 把已经读取的部分提取出来?
+		m, e := r.Read(b.buf[i:cap(b.buf)]) // buf的容量 - 当前读写位置的索引
 		if m < 0 {
 			panic(errNegativeRead)
 		}
@@ -299,6 +303,7 @@ func (b *Buffer) WriteRune(r rune) (n int, err error) {
 func (b *Buffer) Read(p []byte) (n int, err error) {
 	b.lastRead = opInvalid
 	if b.empty() {
+		// 如果 b 已经没有可以返回的未被读取的字节
 		// Buffer is empty, reset to recover space.
 		b.Reset()
 		if len(p) == 0 {
@@ -307,7 +312,7 @@ func (b *Buffer) Read(p []byte) (n int, err error) {
 		return 0, io.EOF
 	}
 	n = copy(p, b.buf[b.off:])
-	b.off += n
+	b.off += n //更新读写位置的索引
 	if n > 0 {
 		b.lastRead = opRead
 	}
@@ -320,12 +325,12 @@ func (b *Buffer) Read(p []byte) (n int, err error) {
 // The slice is only valid until the next call to a read or write method.
 func (b *Buffer) Next(n int) []byte {
 	b.lastRead = opInvalid
-	m := b.Len()
+	m := b.Len() //buf剩余的未被读取的字节个数
 	if n > m {
 		n = m
 	}
 	data := b.buf[b.off : b.off+n]
-	b.off += n
+	b.off += n //更新当前读写的位置索引
 	if n > 0 {
 		b.lastRead = opRead
 	}

@@ -24,6 +24,7 @@ type Reader struct {
 // string.
 func (r *Reader) Len() int {
 	if r.i >= int64(len(r.s)) {
+		// 用于跟踪当前读位置的索引 >= Reader结构体s成员的长度
 		return 0
 	}
 	return int(int64(len(r.s)) - r.i)
